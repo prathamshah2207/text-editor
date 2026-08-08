@@ -63,6 +63,31 @@ void enableRawMode() {
 	if (tcsetattr(STDIN_FILENO, TCSAFLUSH, &raw) == -1) die("tcsetattr");
 }
 
+// reads input and by waiting for a keypress and then return it
+char editorReadKey() {
+	int nread;
+	char c;
+	while ((nread = read(STDIN_FILENO, &c, 1)) != 1) {
+		if (nread == -1 && errno != EAGAIN) die("read");
+	}
+	return c;
+}
+
+/*** input ***/
+
+// checks for key entries and simulate such outputs for specific entries
+void editorProcessKeypress() {
+	// call key reading function to get the read key
+	char c = editorReadKey();
+
+	switch (c) {
+		// checks of ctrl+q was pressed to exit the program
+		case CTRL_KEY('q'):
+			exit(0);
+			break;
+	}
+}
+
 /*** init ***/
 
 int main() {
@@ -70,15 +95,7 @@ int main() {
 
 	// read input from the user until it gets input of q
 	while (1) {
-		char c = '\0';
-		//  errno and EAGAIN come from <errno.h>
-		if (read(STDIN_FILENO, &c, 1) == -1 && errno != EAGAIN) die("read");
-		if (iscntrl(c)) {
-			printf("%d\n", c);
-		} else {
-			printf("%d ('%c')\n", c, c);
-		}
-		if (c == CTRL_KEY('q')) break;
+		editorProcessKeypress();
 	}
 	return 0;
 }
