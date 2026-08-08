@@ -17,6 +17,10 @@ struct termios original_termios;
 
 //  this is for error handling
 void die(const char *s) {
+	// this makes sure if we run into some error, we dont throw out garbage but clear everything and then throw error at the top of screen and exit
+	write(STDOUT_FILENO, "\x1b[2J", 4);
+	write(STDOUT_FILENO, "\x1b[H", 3);
+
 	// perror reads from global errno variable and the description error message and provides it. Exit 1 then exits the program with exit status 1, meaning failure
 	perror(s);
 	exit(1);
@@ -81,11 +85,31 @@ void editorProcessKeypress() {
 	char c = editorReadKey();
 
 	switch (c) {
-		// checks of ctrl+q was pressed to exit the program
+		// checks of ctrl+q was pressed to go for exit sequence of the program
 		case CTRL_KEY('q'):
+			write(STDOUT_FILENO, "\x1b[2J", 4);
+			write(STDOUT_FILENO, "\x1b[H", 3);
 			exit(0);
 			break;
 	}
+}
+
+/*** output ***/
+
+// clears the current cli screen
+void editorRefreshScreen() {
+
+	// writes the clear screen escape sequence in the terminal
+	// 4 is for letting the terminal know it will get a 4 bytes writing
+	// \x1b is the escape character 27 (1 byte)
+	// the [2J (3 bytes) is command after the excape sequence
+	// J command clears the screen, 2 clears the ENTIRE screen. by default is 0 meaning clearing cursor to the end and 1 means top to the cursor
+	write(STDOUT_FILENO, "\x1b[2J", 4);
+
+	// H command positions the cursor and it can take upto 2 args for row and column position.
+	// eg. if want to position at 80x24 we could write <esc>[24;80H
+	// by default it start from 1;1 and that is the top left corner of screen not 0,0
+	write(STDOUT_FILENO, "\x1b[H", 3);
 }
 
 /*** init ***/
@@ -95,6 +119,7 @@ int main() {
 
 	// read input from the user until it gets input of q
 	while (1) {
+		editorRefreshScreen();
 		editorProcessKeypress();
 	}
 	return 0;
