@@ -96,6 +96,14 @@ void editorProcessKeypress() {
 
 /*** output ***/
 
+// draw tilde(~) on the left side of the screen on all columns after the end of file
+void editorDrawRows() {
+	int y;
+	for (y=0; y<24; y++) {
+		write(STDOUT_FILENO, "~\r\n", 3)
+	}
+}
+
 // clears the current cli screen
 void editorRefreshScreen() {
 
@@ -109,6 +117,10 @@ void editorRefreshScreen() {
 	// H command positions the cursor and it can take upto 2 args for row and column position.
 	// eg. if want to position at 80x24 we could write <esc>[24;80H
 	// by default it start from 1;1 and that is the top left corner of screen not 0,0
+	write(STDOUT_FILENO, "\x1b[H", 3);
+
+	editorDrawRows();
+
 	write(STDOUT_FILENO, "\x1b[H", 3);
 }
 
