@@ -5,13 +5,19 @@
 #include <ctype.h>
 #include <stdio.h>
 #include <errno.h>
+#include <sys/ioctl.h>
 
 /*** defines ***/
 #define CTRL_KEY(k) ((k) & 0x1f)
 
 /*** data ***/
+struct editorConfig {
+	int screenrows;
+	int screencols;
+	struct termios original_termios;
+};
 
-struct termios original_termios;
+struct editorConfig E;
 
 /*** terminal ***/
 
@@ -28,18 +34,18 @@ void die(const char *s) {
 
 // disables raw mode - to be done one exit
 void disableRawMode() {
-	if (tcsetattr(STDIN_FILENO, TCSAFLUSH, &original_termios) == -1) die("tcsetattr");
+	if (tcsetattr(STDIN_FILENO, TCSAFLUSH, &E.original_termios) == -1) die("tcsetattr");
 }
 
 // This enables raw typing mode by manually changing all echo attributes
 void enableRawMode() {
 	// get all attributes into original_termios struct to save them
-	if (tcgetattr(STDIN_FILENO, &original_termios) == -1) die("tcgetattr");
+	if (tcgetattr(STDIN_FILENO, &E.original_termios) == -1) die("tcgetattr");
 
 	atexit(disableRawMode);
 	
 	// a new raw struct with the same attributes as original
-	struct termios raw = original_termios;
+	struct termios raw = E.original_termios;
 
 	// modify raw by hand
 	// c_lflags means local flags
@@ -77,6 +83,23 @@ char editorReadKey() {
 	return c;
 }
 
+// gets the window size in rows and columns and stores them in the passed pointers of the struct
+int getWindowSize(int *rows, int *columns) {
+	struct winsize ws;
+
+	//ioctl() will place the number of columns wide and the number of rows high the terminal is into the given winsize struct
+	//ioctl stands for Input/Output Control
+	//TIOCGWINSZ stands for Terminal IOCtl Get Window SiZe
+	if (ioctl(STDOUT_FILENO, TIOCGWINSZ, &ws) == -1 || ws.ws_col == 0) {
+		//on ioctl failure or if somehow theres no columns on the display then we return -1
+		return -1;
+	} else {
+		*columns = ws.ws_col;
+		*rows = ws.ws_row;
+		return 0;
+	}
+}
+
 /*** input ***/
 
 // checks for key entries and simulate such outputs for specific entries
@@ -99,8 +122,8 @@ void editorProcessKeypress() {
 // draw tilde(~) on the left side of the screen on all columns after the end of file
 void editorDrawRows() {
 	int y;
-	for (y=0; y<24; y++) {
-		write(STDOUT_FILENO, "~\r\n", 3)
+	for (y=0; y < E.screenrows; y++) {
+		write(STDOUT_FILENO, "~\r\n", 3);
 	}
 }
 
@@ -126,8 +149,14 @@ void editorRefreshScreen() {
 
 /*** init ***/
 
+// runs the getWindowSize function to get the window size parameters stored globally and die on error
+void initEditor() {
+	if (getWindowSize(&E.screenrows, &E.screencols) == -1) die("getWindowSize");
+}
+
 int main() {
 	enableRawMode();
+	initEditor();
 
 	// read input from the user until it gets input of q
 	while (1) {
