@@ -83,6 +83,25 @@ char editorReadKey() {
 	return c;
 }
 
+// 
+int getCursorPosition(int *rows, int *columns) {
+	char buf[32];
+	unsigned int i = 0;
+
+	if (write(STDIN_FILENO, "\x1b[6n", 4) != 4) return -1;
+
+	while (i < sizeof(buf) - 1) {
+		if (read(STDIN_FILENO, &buf[i], 1) != 1) break;
+		if (buf[i] == 'R') break;
+		i++;
+	}
+	buf[i] = '\0';
+
+	if (buf[0] != '\x1b' || buf[1] != '[') return -1;
+	if (sscanf(&buf[2], "%d;%d", rows, columns) != 2) return -1;
+	return 0;
+}
+
 // gets the window size in rows and columns and stores them in the passed pointers of the struct
 int getWindowSize(int *rows, int *columns) {
 	struct winsize ws;
@@ -91,8 +110,13 @@ int getWindowSize(int *rows, int *columns) {
 	//ioctl stands for Input/Output Control
 	//TIOCGWINSZ stands for Terminal IOCtl Get Window SiZe
 	if (ioctl(STDOUT_FILENO, TIOCGWINSZ, &ws) == -1 || ws.ws_col == 0) {
-		//on ioctl failure or if somehow theres no columns on the display then we return -1
-		return -1;
+
+		// we use 2 commands at ones, C for Cursor Forward and B for Cursor Down
+		// 999 ensures that the cursor reaches the right bottom edges of the screen
+		// this is to make sure if ioctl doesnt work then we find out the rows with help of cursor positioning
+		if (write(STDOUT_FILENO, "\x1b[999C\x1b[999B", 12) != 12) return -1;
+		//on ioctl failure or if somehow theres no columns on the display then we return the cursor's position
+		return getCursorPosition(rows, columns);
 	} else {
 		*columns = ws.ws_col;
 		*rows = ws.ws_row;
